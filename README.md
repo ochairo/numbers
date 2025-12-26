@@ -32,15 +32,11 @@ pnpm add @ochairo/numbers
 ```ts
 import { Int, Decimal } from '@ochairo/numbers';
 
-// Integers
-Int(42).add(8).toString();  // "50"
+const integer: Int = Int("9007199254740992");
+const decimal: Decimal = Decimal("12345678901234567890.123456790");
 
-// Decimals
-Decimal("0.1").add("0.2").toString();  // "0.3"
-
-// Mix types freely
-Int(10).add("5").multiply(Int(2)).toString();  // "30"
-Decimal("3.5").add(2.5).subtract(Decimal("1")).toString();  // "5"
+integer.add(decimal).toString();       // "12345679901912442382.123456782"
+decimal.subtract(integer).toString();  // "12345678901234567889.223456798"
 ```
 
 ## Documentation
