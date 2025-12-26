@@ -1,6 +1,6 @@
 {
   "name": "@ochairo/numbers",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Primitive-like integer and decimal types for safe arithmetic",
   "type": "module",
   "main": "./dist/index.js",
