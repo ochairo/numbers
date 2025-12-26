@@ -46,5 +46,5 @@
  * @module
  */
 
-export { Int, type Int as IntType } from './integer';
-export { Decimal, type Decimal as DecimalType } from './decimal';
+export { Int } from './integer';
+export { Decimal } from './decimal';

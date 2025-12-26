@@ -253,7 +253,7 @@ describe('Int', () => {
       // MySQL unsigned BIGINT max: 18446744073709551615
       const mysqlMax = Int('18446744073709551615');
       expect(mysqlMax.toString()).toBe('18446744073709551615');
-      
+
       const result = mysqlMax.add(1);
       expect(result.toString()).toBe('18446744073709551616');
     });
