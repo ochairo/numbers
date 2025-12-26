@@ -6,8 +6,11 @@
 
 Primitive-like integer and decimal types for safe arithmetic.<br>
 
+[![npm version](https://img.shields.io/npm/v/@ochairo/numbers)](https://www.npmjs.com/package/@ochairo/numbers)
+[![npm downloads](https://img.shields.io/npm/dm/@ochairo/numbers)](https://www.npmjs.com/package/@ochairo/numbers)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/@ochairo/numbers)](https://bundlephobia.com/package/@ochairo/numbers)
+![CD](https://github.com/ochairo/numbers/workflows/CD/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Bundle Size](https://img.shields.io/badge/bundle-4.3KB%20minified-brightgreen)
 
 </div>
 
