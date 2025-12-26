@@ -247,6 +247,24 @@ describe('Decimal', () => {
       expect(large.add('0.000001').toString()).toBe('1000000000000');
     });
 
+    it('should handle MySQL DECIMAL(65,30) limits', () => {
+      // MySQL DECIMAL max: 65 total digits, 30 decimal places
+      // Max value: 99999999999999999999999999999999999.999999999999999999999999999999
+      const mysqlMax = Decimal('99999999999999999999999999999999999.999999');
+      expect(mysqlMax.toString()).toBe('99999999999999999999999999999999999.999999');
+
+      const result = mysqlMax.add('0.000001');
+      expect(result.toString()).toBe('100000000000000000000000000000000000');
+    });
+
+    it('should handle numbers beyond MAX_SAFE_INTEGER', () => {
+      const huge = Decimal('99999999999999999999.123456');
+      expect(huge.add('0.876544').toString()).toBe('100000000000000000000');
+
+      const result = huge.multiply('2');
+      expect(result.toString()).toBe('199999999999999999998.246912');
+    });
+
     it('should handle negative zero', () => {
       const result = Decimal('0').negate();
       expect(result.toString()).toBe('0');

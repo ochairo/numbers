@@ -249,6 +249,15 @@ describe('Int', () => {
       expect(result.toString()).toBe('9007199254740992');
     });
 
+    it('should handle MySQL BIGINT range (19 digits)', () => {
+      // MySQL unsigned BIGINT max: 18446744073709551615
+      const mysqlMax = Int('18446744073709551615');
+      expect(mysqlMax.toString()).toBe('18446744073709551615');
+      
+      const result = mysqlMax.add(1);
+      expect(result.toString()).toBe('18446744073709551616');
+    });
+
     it('should handle numbers beyond JavaScript number range', () => {
       const huge = Int('99999999999999999999999999999999');
       const result = huge.multiply(2);
