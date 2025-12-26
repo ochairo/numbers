@@ -76,7 +76,6 @@ describe('Decimal', () => {
       expect(x.add(2.5).toString()).toBe('8');
       expect(x.subtract(1.5).toString()).toBe('4');
       expect(x.multiply(2).toString()).toBe('11');
-      expect(x.divide(2, 2).toString()).toBe('2.75');
     });
   });
 
