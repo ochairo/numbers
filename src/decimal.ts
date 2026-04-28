@@ -7,17 +7,28 @@ class DecimalValue {
   private readonly scale: number;
   private static readonly DEFAULT_PRECISION = 20;
 
-  constructor(value: number | string | DecimalValue, scale?: number) {
+  /**
+   * Public path: accepts number | string | DecimalValue.
+   * Internal fast-path: accepts bigint + scale (used only by _make()).
+   */
+  constructor(value: number | string | DecimalValue | bigint, scale?: number) {
+    if (typeof value === "bigint") {
+      // Internal construction — direct bigint + scale, bypasses string parsing
+      this.value = value;
+      this.scale = scale ?? 0;
+      return;
+    }
+
     if (value instanceof DecimalValue) {
       this.value = value.value;
       this.scale = value.scale;
       return;
     }
 
-    const str = typeof value === 'number' ? value.toString() : value;
-    const parts = str.split('.');
-    const integerPart = parts[0] ?? '0';
-    const fractionalPart = parts[1] ?? '';
+    const str = typeof value === "number" ? value.toString() : value;
+    const parts = str.split(".");
+    const integerPart = parts[0] ?? "0";
+    const fractionalPart = parts[1] ?? "";
 
     if (scale !== undefined) {
       this.scale = scale;
@@ -26,9 +37,16 @@ class DecimalValue {
     }
 
     // Pad or truncate fractional part to match scale
-    const adjustedFractional = fractionalPart.padEnd(this.scale, '0').slice(0, this.scale);
+    const adjustedFractional = fractionalPart
+      .padEnd(this.scale, "0")
+      .slice(0, this.scale);
     const combined = integerPart + adjustedFractional;
     this.value = BigInt(combined);
+  }
+
+  /** Internal factory — avoids any-casts by using the bigint constructor path. */
+  private static _make(value: bigint, scale: number): DecimalValue {
+    return new DecimalValue(value, scale);
   }
 
   /**
@@ -36,9 +54,7 @@ class DecimalValue {
    */
   add(other: number | string | DecimalValue): DecimalValue {
     const [a, b] = DecimalValue.alignScale(this, DecimalValue.from(other));
-    const result = new DecimalValue('0', a.scale);
-    (result as any).value = a.value + b.value;
-    return result.normalize();
+    return DecimalValue._make(a.value + b.value, a.scale).normalize();
   }
 
   /**
@@ -46,9 +62,7 @@ class DecimalValue {
    */
   subtract(other: number | string | DecimalValue): DecimalValue {
     const [a, b] = DecimalValue.alignScale(this, DecimalValue.from(other));
-    const result = new DecimalValue('0', a.scale);
-    (result as any).value = a.value - b.value;
-    return result.normalize();
+    return DecimalValue._make(a.value - b.value, a.scale).normalize();
   }
 
   /**
@@ -56,28 +70,41 @@ class DecimalValue {
    */
   multiply(other: number | string | DecimalValue): DecimalValue {
     const otherDec = DecimalValue.from(other);
-    const result = new DecimalValue('0', this.scale + otherDec.scale);
-    (result as any).value = this.value * otherDec.value;
-    return result.normalize();
+    return DecimalValue._make(
+      this.value * otherDec.value,
+      this.scale + otherDec.scale,
+    ).normalize();
   }
 
   /**
    * Division
+   *
+   * result = (this.value / 10^thisScale) / (other.value / 10^otherScale)
+   *        = this.value * 10^(otherScale - thisScale) / other.value
+   *
+   * To express the result at `precision` decimal places:
+   *   resultValue = this.value * 10^(precision + otherScale - thisScale) / other.value
    */
-  divide(other: number | string | DecimalValue, precision = DecimalValue.DEFAULT_PRECISION): DecimalValue {
+  divide(
+    other: number | string | DecimalValue,
+    precision = DecimalValue.DEFAULT_PRECISION,
+  ): DecimalValue {
     const otherDec = DecimalValue.from(other);
     if (otherDec.value === 0n) {
-      throw new RangeError('Division by zero');
+      throw new RangeError("Division by zero");
     }
 
-    // Scale up the numerator for precision
-    const scaleDiff = precision + this.scale - otherDec.scale;
-    const scaledValue = this.value * (10n ** BigInt(scaleDiff));
+    const scaleDiff = precision + otherDec.scale - this.scale;
+    if (scaleDiff < 0) {
+      const minPrecision = this.scale - otherDec.scale;
+      throw new RangeError(
+        `divide() precision (${precision}) is too low — must be at least ${minPrecision} to represent this quotient`,
+      );
+    }
+    const scaledValue = this.value * 10n ** BigInt(scaleDiff);
     const resultValue = scaledValue / otherDec.value;
 
-    const result = new DecimalValue('0', precision);
-    (result as any).value = resultValue;
-    return result.normalize();
+    return DecimalValue._make(resultValue, precision).normalize();
   }
 
   /**
@@ -85,9 +112,7 @@ class DecimalValue {
    */
   abs(): DecimalValue {
     if (this.value < 0n) {
-      const result = new DecimalValue('0', this.scale);
-      (result as any).value = -this.value;
-      return result;
+      return DecimalValue._make(-this.value, this.scale);
     }
     return this;
   }
@@ -96,13 +121,11 @@ class DecimalValue {
    * Negation
    */
   negate(): DecimalValue {
-    const result = new DecimalValue('0', this.scale);
-    (result as any).value = -this.value;
-    return result;
+    return DecimalValue._make(-this.value, this.scale);
   }
 
   /**
-   * Round to specified decimal places
+   * Round to specified decimal places (round half toward +∞)
    */
   round(decimalPlaces = 0): DecimalValue {
     if (decimalPlaces >= this.scale) {
@@ -113,43 +136,43 @@ class DecimalValue {
     const quotient = this.value / divisor;
     const remainder = this.value % divisor;
 
-    // Round half up
+    // Round half up (toward +∞)
     const halfDivisor = divisor / 2n;
     const rounded = remainder >= halfDivisor ? quotient + 1n : quotient;
 
-    const result = new DecimalValue('0', decimalPlaces);
-    (result as any).value = rounded;
-    return result;
+    return DecimalValue._make(rounded, decimalPlaces);
   }
 
   /**
-   * Floor (round down)
+   * Floor (round toward −∞)
    */
   floor(): DecimalValue {
+    if (this.scale === 0) return this;
+
     const divisor = 10n ** BigInt(this.scale);
     const quotient = this.value / divisor;
     const remainder = this.value % divisor;
 
-    // For negative numbers with remainder, subtract 1
-    const floored = remainder !== 0n && this.value < 0n ? quotient - 1n : quotient;
-    const result = new DecimalValue('0', 0);
-    (result as any).value = floored;
-    return result;
+    // For negative numbers with a remainder, subtract 1 (truncation goes toward zero, floor goes toward −∞)
+    const floored =
+      remainder !== 0n && this.value < 0n ? quotient - 1n : quotient;
+    return DecimalValue._make(floored, 0);
   }
 
   /**
-   * Ceil (round up)
+   * Ceil (round toward +∞)
    */
   ceil(): DecimalValue {
+    if (this.scale === 0) return this;
+
     const divisor = 10n ** BigInt(this.scale);
     const quotient = this.value / divisor;
     const remainder = this.value % divisor;
 
-    // For positive numbers with remainder, add 1
-    const ceiled = remainder !== 0n && this.value > 0n ? quotient + 1n : quotient;
-    const result = new DecimalValue('0', 0);
-    (result as any).value = ceiled;
-    return result;
+    // For positive numbers with a remainder, add 1
+    const ceiled =
+      remainder !== 0n && this.value > 0n ? quotient + 1n : quotient;
+    return DecimalValue._make(ceiled, 0);
   }
 
   /**
@@ -234,31 +257,39 @@ class DecimalValue {
    */
   toString(): string {
     const str = this.value.toString();
-    const isNegative = str.startsWith('-');
+    const isNegative = str.startsWith("-");
     const absStr = isNegative ? str.slice(1) : str;
 
     if (this.scale === 0) {
       return str;
     }
 
-    const padded = absStr.padStart(this.scale + 1, '0');
-    const integerPart = padded.slice(0, -this.scale) || '0';
+    const padded = absStr.padStart(this.scale + 1, "0");
+    const integerPart = padded.slice(0, -this.scale) || "0";
     const fractionalPart = padded.slice(-this.scale);
 
     // Remove trailing zeros
-    const trimmedFractional = fractionalPart.replace(/0+$/, '');
+    const trimmedFractional = fractionalPart.replace(/0+$/, "");
 
-    if (trimmedFractional === '') {
-      return (isNegative ? '-' : '') + integerPart;
+    if (trimmedFractional === "") {
+      return (isNegative ? "-" : "") + integerPart;
     }
 
-    return (isNegative ? '-' : '') + integerPart + '.' + trimmedFractional;
+    return (isNegative ? "-" : "") + integerPart + "." + trimmedFractional;
   }
 
   /**
    * Convert to JSON
    */
   toJSON(): string {
+    return this.toString();
+  }
+
+  /**
+   * node-postgres custom serializer — returns the decimal as a plain string
+   * so it can be passed as a query parameter to PostgreSQL numeric columns.
+   */
+  toPostgres(): string {
     return this.toString();
   }
 
@@ -289,37 +320,34 @@ class DecimalValue {
       return this;
     }
 
-    const result = new DecimalValue('0', newScale);
-    (result as any).value = newValue;
-    return result;
+    return DecimalValue._make(newValue, newScale);
   }
 
   /**
-   * Helper: convert to Decimal
+   * Helper: convert to DecimalValue
    */
   private static from(value: number | string | DecimalValue): DecimalValue {
-    return value instanceof Decimal ? value : new DecimalValue(value);
+    return value instanceof DecimalValue ? value : new DecimalValue(value);
   }
 
   /**
    * Helper: align two decimals to the same scale
    */
-  private static alignScale(a: DecimalValue, b: DecimalValue): [Decimal, Decimal] {
+  private static alignScale(
+    a: DecimalValue,
+    b: DecimalValue,
+  ): [DecimalValue, DecimalValue] {
     if (a.scale === b.scale) {
       return [a, b];
     }
 
     if (a.scale > b.scale) {
       const factor = 10n ** BigInt(a.scale - b.scale);
-      const alignedB = new DecimalValue('0', a.scale);
-      (alignedB as any).value = b.value * factor;
-      return [a, alignedB];
+      return [a, DecimalValue._make(b.value * factor, a.scale)];
     }
 
     const factor = 10n ** BigInt(b.scale - a.scale);
-    const alignedA = new DecimalValue('0', b.scale);
-    (alignedA as any).value = a.value * factor;
-    return [alignedA, b];
+    return [DecimalValue._make(a.value * factor, b.scale), b];
   }
 }
 

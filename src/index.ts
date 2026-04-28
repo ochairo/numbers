@@ -46,5 +46,5 @@
  * @module
  */
 
-export { Int } from './integer';
-export { Decimal } from './decimal';
+export { Int } from "./integer.js";
+export { Decimal } from "./decimal.js";
