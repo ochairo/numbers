@@ -42,15 +42,3 @@ decimal.subtract(integer).toString();  // "12345678901234567889.223456798"
 ## Documentation
 
 - [API Reference](./docs/API.md)
-- [Usage Guide](./docs/USAGE.md)
-- [Examples](./docs/EXAMPLES.md)
-
-<br><br>
-
-<div align="center">
-
-[Report Bug](https://github.com/ochairo/numbers/issues) • [Request Feature](https://github.com/ochairo/numbers/issues)
-
-**Made with ❤︎ by [ochairo](https://github.com/ochairo)**
-
-</div>
