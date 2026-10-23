@@ -25,23 +25,24 @@ class DecimalValue {
       return;
     }
 
-    const str = typeof value === "number" ? value.toString() : value;
-    const parts = str.split(".");
-    const integerPart = parts[0] ?? "0";
-    const fractionalPart = parts[1] ?? "";
-
-    if (scale !== undefined) {
-      this.scale = scale;
-    } else {
-      this.scale = fractionalPart.length;
+    if (typeof value === "number" && !Number.isFinite(value)) {
+      throw new RangeError("Decimal requires a finite number");
     }
-
-    // Pad or truncate fractional part to match scale
-    const adjustedFractional = fractionalPart
-      .padEnd(this.scale, "0")
-      .slice(0, this.scale);
-    const combined = integerPart + adjustedFractional;
-    this.value = BigInt(combined);
+    const str = typeof value === "number" ? value.toString() : value.trim();
+    const match = /^([+-]?)(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:e([+-]?\d+))?$/i.exec(str);
+    // Only finite Number.toString() output accepts a bounded exponent.
+    // String inputs remain fixed-point decimals without ignored suffixes.
+    if (!match || (typeof value === "string" && match[5] !== undefined)) {
+      throw new SyntaxError("Invalid fixed-point decimal");
+    }
+    const fraction = match[3] ?? match[4] ?? "";
+    const exponent = match[5] === undefined ? 0 : Number(match[5]);
+    const decimalScale = fraction.length - exponent;
+    const coefficient = BigInt(`${match[1]}${match[2] ?? "0"}${fraction}`);
+    this.scale = Math.max(0, decimalScale);
+    this.value = decimalScale < 0
+      ? coefficient * 10n ** BigInt(-decimalScale)
+      : coefficient;
   }
 
   /** Internal factory — avoids any-casts by using the bigint constructor path. */
@@ -89,6 +90,7 @@ class DecimalValue {
     other: number | string | DecimalValue,
     precision = DecimalValue.DEFAULT_PRECISION,
   ): DecimalValue {
+    DecimalValue.validatePrecision(precision);
     const otherDec = DecimalValue.from(other);
     if (otherDec.value === 0n) {
       throw new RangeError("Division by zero");
@@ -128,6 +130,7 @@ class DecimalValue {
    * Round to specified decimal places (round half toward +∞)
    */
   round(decimalPlaces = 0): DecimalValue {
+    DecimalValue.validatePrecision(decimalPlaces);
     if (decimalPlaces >= this.scale) {
       return this;
     }
@@ -138,7 +141,9 @@ class DecimalValue {
 
     // Round half up (toward +∞)
     const halfDivisor = divisor / 2n;
-    const rounded = remainder >= halfDivisor ? quotient + 1n : quotient;
+    const rounded = remainder >= halfDivisor
+      ? quotient + 1n
+      : remainder < -halfDivisor ? quotient - 1n : quotient;
 
     return DecimalValue._make(rounded, decimalPlaces);
   }
@@ -328,6 +333,13 @@ class DecimalValue {
    */
   private static from(value: number | string | DecimalValue): DecimalValue {
     return value instanceof DecimalValue ? value : new DecimalValue(value);
+  }
+
+  /** Precision is a nonnegative count, not a fractional or infinite value. */
+  private static validatePrecision(value: number): void {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new RangeError("Decimal precision must be a nonnegative safe integer");
+    }
   }
 
   /**

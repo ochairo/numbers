@@ -41,4 +41,15 @@ decimal.subtract(integer).toString();  // "12345678901234567889.223456798"
 
 ## Documentation
 
+`Decimal` validates the entire trimmed string. Signed decimal forms such as
+`"-1.25"`, `".5"`, and `"1."` are accepted; malformed suffixes and scientific
+notation strings throw `SyntaxError`. Finite JavaScript numbers are accepted,
+including values whose shortest representation uses an exponent. Non-finite
+numbers throw `RangeError`.
+
+Division and rounding precision must be a nonnegative safe integer. Rounding
+chooses the nearest value, with ties toward positive infinity. Arbitrary precision
+arithmetic is not resource bounded: applications accepting untrusted input must
+limit input length and requested precision before calling these APIs.
+
 - [API Reference](./docs/API.md)
