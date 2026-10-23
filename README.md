@@ -27,6 +27,14 @@ Primitive-like integer and decimal types for safe arithmetic.<br>
 pnpm add @ochairo/numbers
 ```
 
+## Upgrading to 2.0.0
+
+Node.js consumers now require Node 24.22.1 or later within the 24.x line, or
+Node 26.12.1 or later. Decimal parsing rejects malformed strings instead of
+accepting a numeric prefix. Division and rounding precision must be nonnegative
+safe integers; callers should handle validation errors. Negative rounding now
+chooses the nearest value, with ties toward positive infinity.
+
 ## Quick Start
 
 ```ts
